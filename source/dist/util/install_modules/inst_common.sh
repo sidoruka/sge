@@ -375,12 +375,15 @@ CheckPath()
 CheckBinaries()
 {
 
+   # This used to insist on qmake and qtcsh, but they are vendored copies of
+   # GNU make and tcsh that no longer build against current glibc, so we are
+   # likely to build without them.  Neither is needed to run a cluster.
    BINFILES="sge_coshepherd \
              sge_execd sge_qmaster  \
              sge_shadowd \
              sge_shepherd qacct qalter qconf qdel qhold \
-             qhost qlogin qmake qmod qmon qresub qrls qrsh qselect qsh \
-             qstat qsub qtcsh qping qquota sgepasswd"
+             qhost qlogin qmod qmon qresub qrls qrsh qselect qsh \
+             qstat qsub qping qquota sgepasswd"
 
    WINBINFILES="sge_coshepherd sge_execd sge_shepherd  \
                 qacct qalter qconf qdel qhold qhost qlogin \
