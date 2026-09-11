@@ -10,7 +10,11 @@ typedef struct _drmaa2_node
    struct _drmaa2_node *next;
 } _drmaa2_Node;
 
-/* static */ struct drmaa2_list_s
+/* The trailing declarator here used to define an unused global object in every
+   translation unit including this header.  gcc < 10 defaulted to -fcommon and
+   silently merged those tentative definitions; gcc >= 10 defaults to
+   -fno-common and rejects them as multiple definitions. */
+struct drmaa2_list_s
 {
    _drmaa2_Node   *head;
    _drmaa2_Node   *tail;
@@ -18,7 +22,7 @@ typedef struct _drmaa2_node
    size_t         valuesize;
    unsigned long  listsize;
    unsigned long  current_pos;
-} drmaa2_list_s;
+};
 
 typedef struct _gw_dict_elem
 {
@@ -33,7 +37,8 @@ typedef struct _drmaa2_dictentry_t
   struct _drmaa2_dictentry_t* next;
 } _drmaa2_dictentry_t;
 
-/* static */ struct drmaa2_dict_s
+/* See the note above drmaa2_list_s. */
+struct drmaa2_dict_s
 {
   _drmaa2_dictentry_t    *head;
   _drmaa2_dictentry_t    *tail;
@@ -41,6 +46,6 @@ typedef struct _drmaa2_dictentry_t
   size_t         valuesize;
   unsigned long  dictsize;
   unsigned long  current_pos;
-} drmaa2_dict_s;
+};
 
 #endif

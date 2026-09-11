@@ -36,7 +36,7 @@ drmaa2_list  drmaa2_list_create (const drmaa2_listtype t, const drmaa2_list_entr
 {
     drmaa2_list list=NULL;
 
-    if((list = (drmaa2_list) malloc(sizeof(drmaa2_list_s))) == NULL)
+    if((list = (drmaa2_list) malloc(sizeof(struct drmaa2_list_s))) == NULL)
     {
         _drmaa2_err_set (DRMAA2_OUT_OF_RESOURCE, "Memeory allocation failure!");
         return NULL;
@@ -343,7 +343,7 @@ drmaa2_error drmaa2_list_del(drmaa2_list list, long pos)
 drmaa2_dict drmaa2_dict_create(const drmaa2_dict_entryfree callback)
 {
     drmaa2_dict dict=NULL;
-    if((dict = (drmaa2_dict) malloc(sizeof(drmaa2_dict_s))) == NULL)
+    if((dict = (drmaa2_dict) malloc(sizeof(struct drmaa2_dict_s))) == NULL)
     {
         _drmaa2_err_set (DRMAA2_OUT_OF_RESOURCE, "Memory allocation failure!");
         return NULL;
@@ -352,7 +352,7 @@ drmaa2_dict drmaa2_dict_create(const drmaa2_dict_entryfree callback)
     dict->head = NULL;
     dict->tail = NULL;
     dict->current = NULL;
-    dict->valuesize = sizeof(drmaa2_dict_s);
+    dict->valuesize = sizeof(struct drmaa2_dict_s);
     dict->dictsize = 0;
     dict->current_pos = 0;
 
@@ -507,7 +507,7 @@ drmaa2_string_list drmaa2_dict_list(const drmaa2_dict dict)
     drmaa2_list keys=NULL;
     char* key;
 
-    if((keys = (drmaa2_list) malloc(sizeof(drmaa2_list_s))) == NULL)
+    if((keys = (drmaa2_list) malloc(sizeof(struct drmaa2_list_s))) == NULL)
     {
         _drmaa2_err_set (DRMAA2_OUT_OF_RESOURCE, "Memory allocation failure!");
         return NULL;
