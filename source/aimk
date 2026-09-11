@@ -1394,6 +1394,15 @@ case LINUX*:
 
    set CFLAGS = "$CFLAGS"
 
+   # glibc 2.32 removed its sunrpc implementation, so rpc/types.h and rpc/xdr.h
+   # are no longer there.  libs/cull/pack.c needs XDR for the portable encoding
+   # of doubles, so where glibc no longer provides RPC take it from libtirpc --
+   # as the CYGWIN target below already does.
+   if ( ! -f /usr/include/rpc/xdr.h ) then
+      set CFLAGS = "$CFLAGS -I/usr/include/tirpc"
+      set LIBS = "$LIBS -ltirpc"
+   endif
+
    set COMPILE_DC = 1
 
 # This was more likely invalid code in qmon
