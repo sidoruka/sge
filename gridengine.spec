@@ -19,10 +19,16 @@
 # * Build GSS modules?
 
 # Use "rpmbuild --without java" to omit all Java bits
+# EL9 has no ant-nodeps or swing-layout, so the Java bits -- JGDI, the Java
+# DRMAA binding and the guiinst subpackage -- cannot be built there.
+%if 0%{?rhel} >= 9
+%bcond_with java
+%else
 %ifarch ppc64
 %bcond_with java
 %else
 %bcond_without java
+%endif
 %endif
 
 # Use "rpmbuild --with hadoop" to build Hadoop support (the herd library)
@@ -74,8 +80,10 @@ Group:   Applications/System
 License: (SISSL and BSD and LGPLv3+ and MIT) and GPLv3+ and GFDL and others
 URL:     https://arc.liv.ac.uk/trac/SGE
 Source:  https://arc.liv.ac.uk/downloads/SGE/releases/%{version}/sge-%{version}.tar.gz
+%if %{with java}
 Source1: IzPack-4.1.1-mod.tar.gz
 Source2: swing-layout-1.0.3.tar.gz
+%endif
 
 Prefix: %{sge_home}
 
@@ -97,6 +105,32 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %global with_jemalloc -with-jemalloc
 %global with_munge -with-munge
 BuildRequires: jemalloc-devel munge-devel
+%endif
+
+# EL9 build adjustments.  Each of these is forced by the platform, not chosen:
+#  * glibc 2.32 removed its sunrpc implementation.  libs/cull/pack.c needs XDR
+#    to encode doubles portably, so aimk takes RPC from libtirpc instead.
+#  * SGE's SSL/CSP framework (libs/comm/cl_ssl_framework.c) is written against
+#    the pre-1.1 OpenSSL API, where X509_STORE_CTX was not opaque, and does not
+#    compile against OpenSSL 3.  CSP mode is therefore unavailable here; the
+#    default (non-CSP) installation is unaffected.
+#  * 3rdparty/qmake is a vendored GNU make 3.8x and 3rdparty/qtcsh a vendored
+#    tcsh.  Both reach for glibc internals that are gone (__alloca, __stat,
+#    union wait), and neither is used by a default installation.
+#  * aimk drives make in a way that does not pass the GNU make jobserver down
+#    to gcc's lto-wrapper, so the default -flto=auto dies with "write
+#    jobserver: Bad file descriptor".  LTO is unwanted here regardless: the
+#    code relies on -fno-strict-aliasing for its type puns (see %%build below).
+%if 0%{?rhel} >= 9
+%global with_secure -no-secure
+%global no_qmake -no-qmake
+%global no_qtcsh -no-qtcsh
+%global _lto_cflags %{nil}
+BuildRequires: libtirpc-devel
+%else
+%global with_secure %nil
+%global no_qmake %nil
+%global no_qtcsh %nil
 %endif
 
 BuildRequires: /bin/csh, %{sslpkg}-devel, ncurses-devel, pam-devel
@@ -123,7 +157,10 @@ BuildRequires: hadoop-0.20 >= 0.20.2+923.197
 # hostname was in net-tools, but is in its own package in Fedora 19;
 # requiring /bin/hostname doesn't work generally as it's in /usr/bin in
 # Fedora > 20.
-%if 0%{?fedora} >= 19
+# On EL9 nothing provides the path /bin/hostname -- the hostname package ships
+# only /usr/bin/hostname and, unlike gawk and tcsh, adds no compatibility
+# symlink -- so the path form would make the package uninstallable there.
+%if 0%{?fedora} >= 19 || 0%{?rhel} >= 9
 BuildRequires: hostname
 Requires: hostname
 %else
@@ -200,7 +237,12 @@ Summary: Gridengine qmaster programs
 Group: Applications/System
 License: BSD and LGPLv3+ and MIT and SISSL and others
 Requires: %{name} = %{epch}%{version}-%{release}
+# Berkeley DB was renamed from db4-* to libdb-* well before EL9
+%if 0%{?rhel} >= 9
+Requires: libdb-utils
+%else
 Requires: db4-utils
+%endif
 Requires(postun): %{name} = %{epch}%{version}-%{release}
 Requires(preun): %{name} = %{epch}%{version}-%{release}
 Requires: /bin/ps
@@ -296,7 +338,7 @@ JAVA_BUILD_OPTIONS="-no-herd"
 %endif
 sh scripts/bootstrap.sh $JAVA_BUILD_OPTIONS
 # -no-remote because we have ssh and PAM instead
-./aimk -pam %with_jemalloc -no-remote %with_munge $parallel_flags $JAVA_BUILD_OPTIONS
+./aimk -pam %with_jemalloc -no-remote %with_munge %with_secure %no_qmake %no_qtcsh $parallel_flags $JAVA_BUILD_OPTIONS
 ./aimk -man $JAVA_BUILD_OPTIONS
 %if %{with java}
 # "-no-gui-inst -no-herd -javadoc" still produces all the javadocs
@@ -327,6 +369,12 @@ echo 'y'| scripts/distinst -local -allall ${gearch}
   rm -r util/sgeSMF
   rm doc/arc_depend_*
   rm util/resources/loadsensors/interix-loadsensor.sh # uses ksh
+%if 0%{?rhel} >= 9
+  # This Nagios check is Python 2 (print statements, "except x, e"), so it
+  # cannot run on EL9, where there is no /usr/bin/python2.  Its "#!/usr/bin/python"
+  # is also a hard error for brp-mangle-shebangs.
+  rm util/resources/monitoring/check_sge.py
+%endif
   for l in lib/*/libdrmaa.so.1.0; do
     ( cd $(dirname $l); ln -sf libdrmaa.so.1.0 libdrmaa.so )
   done
