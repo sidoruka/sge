@@ -1,0 +1,7 @@
+# rpmbuild / in-tree build output
+/RPMS/
+/BUILD/
+/BUILDROOT/
+/SRPMS/
+*.rpm
+*.tar

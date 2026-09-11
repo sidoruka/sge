@@ -1,0 +1,6 @@
+# Recovered Son of Grid Engine 8.1.9 upstream artifacts.
+# Original location (dead as of recovery): https://arc.liv.ac.uk/downloads/SGE/releases/8.1.9/
+# Recovered from the Internet Archive; see README.md for the exact snapshot timestamps.
+3c9559dbc37a09d8eadf105a22ea4fbb2439f1c77ff8129063ff27e06aaa4765  sge-8.1.9.tar.gz
+e9c173f74a44915c039312be60c74e418b0f285ba25197f7c86012b01ba8bc7c  sge-8.1.9.tar.gz.sig
+50788c88ac940e509a906cc3cc5c744846c2bcceb4b8ce616d96a364220799dd  debian-packaging-8.1.9.tar.gz
