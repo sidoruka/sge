@@ -92,13 +92,13 @@ build error. `build-rpm.sh -h` lists the rest.
 ### The same thing by hand
 
 ```sh
-dnf -y install epel-release dnf-plugins-core
+dnf -y install dnf-plugins-core
 dnf config-manager --set-enabled crb
 dnf -y install gcc gcc-c++ make patch tar which diffutils file \
                perl python3 tcsh net-tools hostname git rpm-build \
                openssl-devel ncurses-devel pam-devel \
                hwloc-devel libdb-devel motif-devel libXmu-devel \
-               libtirpc-devel munge-devel jemalloc-devel
+               libtirpc-devel munge-devel
 
 mkdir -p rpmbuild/SOURCES rpmbuild/SPECS
 git archive --format=tar.gz --prefix=sge-8.1.9/ -o rpmbuild/SOURCES/sge-8.1.9.tar.gz HEAD
@@ -109,9 +109,8 @@ rpmbuild --define "_topdir $PWD/rpmbuild" -bb rpmbuild/SPECS/gridengine.spec
 `%setup` expects the tarball to unpack into a single `sge-8.1.9` directory, which is where the
 `--prefix` comes from; take the version from the spec rather than typing it twice.
 
-Repositories: baseos and appstream, plus **crb** for `libtirpc-devel` and `munge-devel`, plus
-**epel** for `jemalloc-devel` — that one package is the only reason EPEL is needed, at build time
-and on the nodes.
+Repositories: baseos and appstream, plus **crb** for `libtirpc-devel` and `munge-devel`. No EPEL,
+at build time or on the nodes — see [jemalloc](#jemalloc) below.
 
 ### What comes out
 
@@ -134,6 +133,24 @@ cannot be built on EL9, and `gridengine.spec` turns them off under `%if 0%{?rhel
 
 None of them is used by a Grid Engine cluster, and nothing in Cloud Pipeline invokes them.
 
+### jemalloc
+
+Upstream's spec passes `aimk -with-jemalloc`; this one does not. `aimk` appends `-ljemalloc` to
+`LIBS` for every binary rather than only qmaster — its own comment says *"fixme: this should probably
+only apply to qmaster"* — so rpm generates a `libjemalloc.so.2` dependency on all four binary
+subpackages, `gridengine-qmon` included. On EL9 that library exists only in EPEL, and a node carrying
+just the distribution repositories and `cloud-pipeline` cannot install the packages at all:
+
+```
+nothing provides libjemalloc.so.2()(64bit) needed by gridengine-8.1.9-1.el9.x86_64
+```
+
+What the flag buys is an alternative malloc for the daemons — an enhancement from 2008, made against
+a much older glibc than EL9's 2.34 — and its allocator statistics in qmaster's `print_malloc_info`,
+per `sge_conf(5)`. Neither is worth requiring EPEL on every node in the cluster, so the packages are
+built against the system allocator instead. `rpmbuild --with jemalloc` restores the old behaviour,
+and then needs `jemalloc-devel` at build time and `jemalloc` on every node.
+
 ## Tags
 
 * `upstream/8.1.9` — the unmodified upstream import. Every Cloud Pipeline change is a commit after
@@ -144,11 +161,12 @@ None of them is used by a Grid Engine cluster, and nothing in Cloud Pipeline inv
 ## Status
 
 The EL9 build works and has been exercised end to end: the packages install into a bare
-`rockylinux:9` (`dnf install`, all file dependencies resolved from the distribution, `%pre` creates
-`sgeadmin`), `inst_sge -m -auto` and `inst_sge -x -auto` both succeed with Cloud Pipeline's own
-`grid.conf`, and a submitted job runs to completion — `qacct -j` reports `exit_status 0`. The XML that
-Cloud Pipeline's autoscaler parses (`qstat -u "*" -r -f -xml`, `qhost -q -F -xml`, `qhost -h "*" -F
--xml`) has the same element and attribute names as before, so the autoscaler needs no change.
+`rockylinux:9` (`dnf install`, every dependency resolved from baseos and appstream with neither crb
+nor EPEL enabled, `%pre` creates `sgeadmin`), `inst_sge -m -auto` and `inst_sge -x -auto` both succeed
+with Cloud Pipeline's own `grid.conf`, and a submitted job runs to completion — `qacct -j` reports
+`exit_status 0`. The XML that Cloud Pipeline's autoscaler parses (`qstat -u "*" -r -f -xml`,
+`qhost -q -F -xml`, `qhost -h "*" -F -xml`) has the same element and attribute names as before, so the
+autoscaler needs no change.
 
 Not written yet: `.github/workflows/release.yml`, and therefore no `v8.1.9-1` tag and no published
 artifact. Until then, build with the commands above.

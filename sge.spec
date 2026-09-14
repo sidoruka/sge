@@ -96,15 +96,34 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 # Only in Factory as of OS 13.1
 %global hwlocpkg libhwloc
 %global xmupkg xorg-x11-libXmu
-%global with_jemalloc %nil
 %global with_munge %nil
 %else
 %global sslpkg openssl
 %global hwlocpkg hwloc
 %global xmupkg libXmu
-%global with_jemalloc -with-jemalloc
 %global with_munge -with-munge
-BuildRequires: jemalloc-devel munge-devel
+BuildRequires: munge-devel
+%endif
+
+# jemalloc is not linked unless asked for with "rpmbuild --with jemalloc".
+#
+# aimk appends -ljemalloc to LIBS for every binary rather than only qmaster (see
+# its own "fixme: this should probably only apply to qmaster"), so rpm generates a
+# libjemalloc.so.2 dependency on all four binary subpackages -- including qmon,
+# which has no use for it.  On EL9 that library is in EPEL and nowhere else, so a
+# node carrying only the distribution repositories cannot install the packages:
+#
+#   nothing provides libjemalloc.so.2()(64bit) needed by gridengine-8.1.9-1.el9
+#
+# What the flag buys is an alternative malloc for the daemons -- an enhancement
+# from 2008, made against a much older glibc -- and its allocator statistics in
+# qmaster's print_malloc_info, per sge_conf(5).  Neither earns an EPEL dependency
+# on every node in the cluster.
+%if 0%{?_with_jemalloc:1}
+%global with_jemalloc -with-jemalloc
+BuildRequires: jemalloc-devel
+%else
+%global with_jemalloc %nil
 %endif
 
 # EL9 build adjustments.  Each of these is forced by the platform, not chosen:
