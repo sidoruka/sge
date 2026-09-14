@@ -101,12 +101,12 @@ if [ "$maketar" = yes ]; then
 
    rm -rf "$staging"
    mkdir -p "$staging/$payload"
-   for rpm in "$outdir"/*.rpm; do
-      case $rpm in
-         *-debuginfo-*|*-debugsource-*) continue ;;
-      esac
-      cp -p "$rpm" "$staging/$payload/"
-   done
+   # Pack what this build produced, i.e. rpmbuild's own output directory.  The -o
+   # directory accumulates instead: build for EL9 and then for EL10 with the same
+   # -o, and globbing it would put both distributions' packages in one payload.
+   find "$topdir/RPMS" -name '*.rpm' \
+        ! -name '*-debuginfo-*' ! -name '*-debugsource-*' \
+        -exec cp -p {} "$staging/$payload/" \;
    ( cd "$staging" && tar -cf "$tar" "$payload" )
    rm -rf "$staging"
    echo
