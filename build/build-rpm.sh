@@ -76,6 +76,10 @@ if [ "$worktree" = yes ]; then
    ( cd "$repo" && git ls-files -z |
         tar -czf "$tarball" --null -T - --transform "s,^,sge-$version/," )
 else
+   # Refresh first: diff-index compares the index's cached stat info, and a checkout
+   # bind-mounted into a container shows up with a different uid, which looks like a
+   # modification until the index is refreshed against the actual contents.
+   git -C "$repo" update-index -q --refresh 2>/dev/null || :
    git -C "$repo" diff-index --quiet HEAD -- ||
       echo "${0##*/}: warning: the working tree is dirty; building HEAD anyway (-w builds the tree)" >&2
    git -C "$repo" archive --format=tar.gz --prefix="sge-$version/" -o "$tarball" HEAD
