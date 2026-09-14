@@ -50,11 +50,89 @@ rests on the spec metadata matching the deployed packages, not on the signature.
 ```
 /                       pristine SoGE 8.1.9 source tree (tag: upstream/8.1.9)
 gridengine.spec         upstream spec; builds the gridengine* subpackages (== sge.spec)
+build/                  build scripts -- see Building
 provenance/             recovery artifacts and checksums
 ```
 
-Added in later steps: `patches/el9/`, `build/build-rpm.sh`, `test/reference/`,
-`.github/workflows/release.yml`.
+The EL9 changes are ordinary commits on top of `upstream/8.1.9`, not a `patches/` directory:
+`git diff upstream/8.1.9` is the whole delta, and `git log` says why each piece of it exists.
+
+Added in a later step: `.github/workflows/release.yml`, which runs the same scripts as below.
+
+## Building
+
+Two constraints apply however you build:
+
+* **Build on the distribution you want packages for.** rpm stamps `%dist` from the build host, so
+  `el9` packages have to be built on EL9.
+* **Build x86_64.** Cloud Pipeline hardcodes `/opt/sge/bin/lx-amd64` in three setup scripts, so an
+  arm64 package would install and then find no binaries.
+
+### From a workstation, in a container
+
+```sh
+build/build-in-container.sh          # -> RPMS/
+build/build-in-container.sh --tar    # -> RPMS/, plus the tar the platform downloads
+```
+
+Needs only docker. It builds in `rockylinux:9`, forces `--platform linux/amd64` (so it works on an
+arm64 workstation — under Rosetta this takes minutes, not hours), keeps all scratch space inside the
+container, and chowns the results back to you. Arguments are passed through to `build-rpm.sh`.
+
+### On an EL9 machine
+
+```sh
+sudo build/install-build-deps.sh     # once
+build/build-rpm.sh --tar
+```
+
+`build-rpm.sh -w` builds your working tree instead of `HEAD`, which is what you want while fixing a
+build error. `build-rpm.sh -h` lists the rest.
+
+### The same thing by hand
+
+```sh
+dnf -y install epel-release dnf-plugins-core
+dnf config-manager --set-enabled crb
+dnf -y install gcc gcc-c++ make patch tar which diffutils file \
+               perl python3 tcsh net-tools hostname git rpm-build \
+               openssl-devel ncurses-devel pam-devel \
+               hwloc-devel libdb-devel motif-devel libXmu-devel \
+               libtirpc-devel munge-devel jemalloc-devel
+
+mkdir -p rpmbuild/SOURCES rpmbuild/SPECS
+git archive --format=tar.gz --prefix=sge-8.1.9/ -o rpmbuild/SOURCES/sge-8.1.9.tar.gz HEAD
+cp gridengine.spec rpmbuild/SPECS/
+rpmbuild --define "_topdir $PWD/rpmbuild" -bb rpmbuild/SPECS/gridengine.spec
+```
+
+`%setup` expects the tarball to unpack into a single `sge-8.1.9` directory, which is where the
+`--prefix` comes from; take the version from the spec rather than typing it twice.
+
+Repositories: baseos and appstream, plus **crb** for `libtirpc-devel` and `munge-devel`, plus
+**epel** for `jemalloc-devel` — that one package is the only reason EPEL is needed, at build time
+and on the nodes.
+
+### What comes out
+
+Eleven packages, `8.1.9-1.el9`:
+
+```
+gridengine  -devel  -drmaa4ruby  -execd  -qmaster  -qmon
+gridengine-debuginfo  -debugsource  -execd-debuginfo  -qmaster-debuginfo  -qmon-debuginfo
+```
+
+That is the same set as the `el6` RPMs Cloud Pipeline runs today, minus `guiinst`. Four things
+cannot be built on EL9, and `gridengine.spec` turns them off under `%if 0%{?rhel} >= 9`:
+
+| Not built | Why |
+|---|---|
+| Java / JGDI / `guiinst` | EL9 has no `ant-nodeps` and no `swing-layout` |
+| CSP mode (`-no-secure`) | `libs/comm/cl_ssl_framework.c` needs the pre-1.1 OpenSSL API, where `X509_STORE_CTX` was not opaque |
+| `qmake`, `qtcsh` | vendored GNU make and tcsh, reaching for `__alloca`, `__stat`, `union wait` |
+| LTO | `aimk` does not pass make's jobserver to `lto-wrapper`; the code also needs `-fno-strict-aliasing` |
+
+None of them is used by a Grid Engine cluster, and nothing in Cloud Pipeline invokes them.
 
 ## Tags
 
@@ -65,4 +143,12 @@ Added in later steps: `patches/el9/`, `build/build-rpm.sh`, `test/reference/`,
 
 ## Status
 
-Pristine upstream imported. EL9 build patches and the release Action are not written yet.
+The EL9 build works and has been exercised end to end: the packages install into a bare
+`rockylinux:9` (`dnf install`, all file dependencies resolved from the distribution, `%pre` creates
+`sgeadmin`), `inst_sge -m -auto` and `inst_sge -x -auto` both succeed with Cloud Pipeline's own
+`grid.conf`, and a submitted job runs to completion — `qacct -j` reports `exit_status 0`. The XML that
+Cloud Pipeline's autoscaler parses (`qstat -u "*" -r -f -xml`, `qhost -q -F -xml`, `qhost -h "*" -F
+-xml`) has the same element and attribute names as before, so the autoscaler needs no change.
+
+Not written yet: `.github/workflows/release.yml`, and therefore no `v8.1.9-1` tag and no published
+artifact. Until then, build with the commands above.

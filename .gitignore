@@ -1,7 +1,10 @@
-# rpmbuild / in-tree build output
-/BUILD/
-/BUILDROOT/
+# Build output.  build/build-rpm.sh keeps rpmbuild's scratch space in rpmbuild/
+# and copies the finished packages into RPMS/.
+#
+# Deliberately not listing BUILD/ and BUILDROOT/ here: git matches ignore patterns
+# case-insensitively on macOS and Windows checkouts, where /BUILD/ also hides the
+# tracked build/ directory.
+/rpmbuild/
 /RPMS/
-/SRPMS/
 *.rpm
 *.tar
