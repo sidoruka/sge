@@ -3,14 +3,14 @@
 # Run as root, on the machine or in the container that will do the build.
 #
 # Two of the packages live outside the repositories a minimal install enables, so
-# this has to turn those on and check that it worked:
+# this has to turn that repository on and check that it worked:
 #
 #   crb    libtirpc-devel, munge-devel
-#   epel   jemalloc-devel  --  the only EPEL package in the whole build
 #
-# A missing EPEL does not fail here.  It fails much later, at the end of the rpm
-# transaction, with "nothing provides libjemalloc.so.2", which is a long way from
-# the cause -- hence the explicit check below.
+# Nothing here comes from EPEL, and the default build needs none: jemalloc was the
+# only EPEL package, and gridengine.spec no longer links it (see the comment there).
+# "rpmbuild --with jemalloc" still does, and then needs epel-release enabled and
+# jemalloc-devel installed on top of this set.
 
 set -eu
 
@@ -39,14 +39,12 @@ EOF
    exit 1
 fi
 
-dnf -y install epel-release dnf-plugins-core
+dnf -y install dnf-plugins-core
 dnf config-manager --set-enabled crb
 
 # Fail now, with a readable message, rather than at the end of the build.
-for repo in crb epel; do
-   dnf repolist --enabled | awk '{print $1}' | grep -qx "$repo" ||
-      { echo "$0: repository '$repo' is not enabled -- see the comment at the top" >&2; exit 1; }
-done
+dnf repolist --enabled | awk '{print $1}' | grep -qx crb ||
+   { echo "$0: repository 'crb' is not enabled -- see the comment at the top" >&2; exit 1; }
 
 # The set the EL9 build is verified against.  Where a package is not in baseos or
 # appstream, its repository is named.
@@ -56,8 +54,7 @@ dnf -y install \
     git rpm-build \
     openssl-devel ncurses-devel pam-devel \
     hwloc-devel libdb-devel motif-devel libXmu-devel \
-    libtirpc-devel munge-devel \
-    jemalloc-devel
+    libtirpc-devel munge-devel
 
 # Not installed on purpose: java-devel, javacc, ant-junit.  EL9 has no ant-nodeps
 # and no swing-layout, so gridengine.spec builds --without java there and the
