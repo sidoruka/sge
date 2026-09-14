@@ -1,6 +1,6 @@
 #!/bin/sh
-# Build the EL9 RPMs from any workstation with docker, without installing a
-# toolchain on it:
+# Build the RPMs from any workstation with docker, without installing a toolchain
+# on it:
 #
 #   build/build-in-container.sh            # -> RPMS/
 #   build/build-in-container.sh --tar      # -> RPMS/, plus the tar Cloud Pipeline consumes
@@ -12,8 +12,10 @@
 # when the workstation is arm64; Docker Desktop and colima emulate it (Rosetta on
 # Apple silicon, which is why this takes minutes rather than hours).
 #
-# Override the image with SGE_BUILD_IMAGE, e.g. to build for a different EL major:
-#   SGE_BUILD_IMAGE=rockylinux:10 build/build-in-container.sh
+# Override the image with SGE_BUILD_IMAGE, e.g. to build for a different EL major
+# (the Rocky 10 images live only under rockylinux/rockylinux, there is no
+# docker.io/library/rockylinux:10):
+#   SGE_BUILD_IMAGE=rockylinux/rockylinux:10.2 build/build-in-container.sh
 
 set -eu
 

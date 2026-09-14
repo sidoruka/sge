@@ -1,16 +1,22 @@
 #!/bin/sh
-# Install everything needed to build the gridengine RPMs on EL9 (Rocky Linux 9+).
+# Install everything needed to build the gridengine RPMs on EL9 or EL10 (Rocky Linux 9, 10).
 # Run as root, on the machine or in the container that will do the build.
 #
-# Two of the packages live outside the repositories a minimal install enables, so
-# this has to turn that repository on and check that it worked:
+# Some of the packages live outside the repositories a minimal install enables, so
+# this has to turn those on and check that it worked:
 #
-#   crb    libtirpc-devel, munge-devel
+#   crb    libtirpc-devel, munge-devel  --  on both EL9 and EL10
+#   epel   libdb-devel, motif-devel  --  EL10 only, where RHEL ships neither
+#          Berkeley DB nor Motif; on EL9 appstream has both
 #
-# Nothing here comes from EPEL, and the default build needs none: jemalloc was the
-# only EPEL package, and gridengine.spec no longer links it (see the comment there).
-# "rpmbuild --with jemalloc" still does, and then needs epel-release enabled and
-# jemalloc-devel installed on top of this set.
+# So EPEL is mandatory on EL10 and not wanted on EL9.  jemalloc used to be the one
+# EPEL package on EL9, and gridengine.spec no longer links it (see the comment
+# there); "rpmbuild --with jemalloc" still does, and then needs jemalloc-devel,
+# which is in EPEL on both.
+#
+# A missing EPEL on EL10 does not fail here.  It fails later, in the rpm
+# transaction, with "no match for argument: libdb-devel", a long way from the
+# cause -- hence the explicit check below.
 
 set -eu
 
@@ -39,15 +45,25 @@ EOF
    exit 1
 fi
 
-dnf -y install dnf-plugins-core
+if [ "$el" -ge 10 ]; then
+   dnf -y install epel-release dnf-plugins-core
+   want_repos='crb epel'
+else
+   dnf -y install dnf-plugins-core
+   want_repos=crb
+fi
 dnf config-manager --set-enabled crb
 
 # Fail now, with a readable message, rather than at the end of the build.
-dnf repolist --enabled | awk '{print $1}' | grep -qx crb ||
-   { echo "$0: repository 'crb' is not enabled -- see the comment at the top" >&2; exit 1; }
+for repo in $want_repos; do
+   dnf repolist --enabled | awk '{print $1}' | grep -qx "$repo" ||
+      { echo "$0: repository '$repo' is not enabled -- see the comment at the top" >&2; exit 1; }
+done
 
-# The set the EL9 build is verified against.  Where a package is not in baseos or
-# appstream, its repository is named.
+# The set the EL9 and EL10 builds are verified against.  Which repository provides
+# what differs between the two -- crb has libtirpc-devel and munge-devel on both,
+# while libdb-devel and motif-devel come from appstream on EL9 and from epel on
+# EL10 -- so the list is deliberately flat and lets dnf pick.
 dnf -y install \
     gcc gcc-c++ make patch tar which diffutils file \
     perl python3 tcsh net-tools hostname \
@@ -56,8 +72,8 @@ dnf -y install \
     hwloc-devel libdb-devel motif-devel libXmu-devel \
     libtirpc-devel munge-devel
 
-# Not installed on purpose: java-devel, javacc, ant-junit.  EL9 has no ant-nodeps
-# and no swing-layout, so gridengine.spec builds --without java there and the
+# Not installed on purpose: java-devel, javacc, ant-junit.  Neither EL9 nor EL10 has
+# ant-nodeps or swing-layout, so gridengine.spec builds --without java there and the
 # guiinst subpackage cannot be produced.  Nothing in Cloud Pipeline uses it.
 
 echo
