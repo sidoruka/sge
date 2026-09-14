@@ -152,6 +152,22 @@ BuildRequires: libtirpc-devel
 %global no_qtcsh %nil
 %endif
 
+# EL10 build adjustment.  gcc 14 turns several C constraint violations that were
+# warnings into errors by default, and a bare -Wno-error -- which aimk already
+# passes when it compiles the qmon X code -- does not undo that; only the named
+# -Wno-error=<class> does.  The one place in the tree that trips such an error is
+# 3rdparty/qmon/Xmt310/Xmt/MsgDialogs.c, which takes the address of a va_list
+# *parameter* and so hands _XmtDisplayMessage a __va_list_tag ** where a
+# __va_list_tag (*)[1] is expected.  On x86-64 the two happen to be laid out
+# compatibly, which is why this has gone unnoticed since 1994.  The rest of the
+# tree, daemons included, compiles clean, so the downgrade is named rather than
+# blanket -- a new default error anywhere else should still stop the build.
+%if 0%{?rhel} >= 10
+%global gcc14_cflags -Wno-error=incompatible-pointer-types
+%else
+%global gcc14_cflags %{nil}
+%endif
+
 BuildRequires: /bin/csh, %{sslpkg}-devel, ncurses-devel, pam-devel
 BuildRequires: net-tools, %xmupkg-devel, %hwlocpkg-devel >= 1.1
 # The relevant package might be db4-devel, libdb-devel, or
@@ -345,7 +361,7 @@ EOF
 
 # -O2/-O3 gives warnings about type puns.  It's not clear whether
 # they're serious, but -fno-strict-aliasing just in case.
-export SGE_INPUT_CFLAGS="$RPM_OPT_FLAGS -fno-strict-aliasing"
+export SGE_INPUT_CFLAGS="$RPM_OPT_FLAGS -fno-strict-aliasing %gcc14_cflags"
 export SGE_INPUT_LDFLAGS="$LDFLAGS"
 [ -n "$RPM_BUILD_NCPUS" ] && parallel_flags="-parallel $RPM_BUILD_NCPUS"
 %if %{without java}
