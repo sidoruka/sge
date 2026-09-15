@@ -50,7 +50,7 @@ rests on the spec metadata matching the deployed packages, not on the signature.
 ```
 /                       pristine SoGE 8.1.9 source tree (tag: upstream/8.1.9)
 gridengine.spec         upstream spec; builds the gridengine* subpackages (== sge.spec)
-build/                  build scripts -- see Building
+build/                  build and test scripts -- see Building and Testing
 provenance/             recovery artifacts and checksums
 ```
 
@@ -178,6 +178,29 @@ between needing EPEL on every node in the cluster and not needing it at all, so 
 built against the system allocator instead. `rpmbuild --with jemalloc` restores the old behaviour,
 and then needs `jemalloc-devel` at build time and `jemalloc` on every node.
 
+## Testing
+
+`build/smoke-test.sh` checks a build the way the platform consumes it, rather than trusting that it
+compiled:
+
+```sh
+build/build-in-container.sh --tar                                   # produces the payload
+build/smoke-test.sh                                                 # -> tests it on rockylinux:9
+SGE_TEST_IMAGE=rockylinux/rockylinux:10.2 build/smoke-test.sh -o RPMS
+```
+
+It starts a bare container of the target image and, in it: unpacks the tar payload, asserts six
+runtime packages all stamped with that host's `%dist` and none requiring `libjemalloc`, `dnf install`s
+them with only the repositories that release is allowed to need, checks `%pre` made `sgeadmin` and
+that `/opt/sge/bin/lx-amd64` is populated and `qmon`'s libraries resolve, auto-installs a qmaster and
+an execd from a `grid.conf` generated out of the template the packages ship, submits a job as an
+unprivileged user, and asserts `qacct` reports `exit_status 0` and that the autoscaler's three XML
+queries still carry the element names it reads.
+
+Because it asserts the `%dist` tag, it has to run on the image the packages were built for — testing
+an `el9` payload on EL10 fails by design. `--here` runs the checks directly instead of nesting a
+container, which is how it re-enters itself and how to run it on a real EL host or in CI.
+
 ## Tags
 
 * `upstream/8.1.9` — the unmodified upstream import. Every Cloud Pipeline change is a commit after
@@ -187,8 +210,9 @@ and then needs `jemalloc-devel` at build time and `jemalloc` on every node.
 
 ## Status
 
-Both builds work and have been exercised end to end, on `rockylinux/rockylinux:9.8` and
-`rockylinux/rockylinux:10.2`: all eleven packages build, the six runtime packages install into a bare
+Both builds work and have been exercised end to end by `build/smoke-test.sh`, on
+`rockylinux/rockylinux:9.8` and `rockylinux/rockylinux:10.2`: all eleven packages build, the six
+runtime packages install into a bare
 container of the same image (`%pre` creates `sgeadmin`), `inst_sge -m -auto` and `inst_sge -x -auto`
 both succeed from one `grid.conf`, `qhost` reports the host as `lx-amd64` with `all.q` at 6 slots, a
 job submitted by an unprivileged user finishes with `qacct -j` reporting `exit_status 0`, and the

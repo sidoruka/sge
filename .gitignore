@@ -5,6 +5,6 @@
 # case-insensitively on macOS and Windows checkouts, where /BUILD/ also hides the
 # tracked build/ directory.
 /rpmbuild/
-/RPMS/
+/RPMS*/
 *.rpm
 *.tar
